@@ -12,8 +12,14 @@ import 'widgets.dart';
 class GamePage extends StatefulWidget {
   final MapDef map;
   final SaveManager save;
+  final bool infiniteMode;
 
-  const GamePage({super.key, required this.map, required this.save});
+  const GamePage({
+    super.key,
+    required this.map,
+    required this.save,
+    this.infiniteMode = false,
+  });
 
   @override
   State<GamePage> createState() => _GamePageState();
@@ -163,8 +169,8 @@ class _GamePageState extends State<GamePage>
     if (_enemies.isEmpty) {
       _nextWaveTimer -= dt;
       if (_nextWaveTimer <= 0) {
-        // check win
-        if (_wave >= widget.map.wavesCount) {
+        // check win (somente no modo normal)
+        if (!widget.infiniteMode && _wave >= widget.map.wavesCount) {
           _endGame(won: true);
           return;
         }
@@ -440,7 +446,7 @@ class _GamePageState extends State<GamePage>
 
     if (row < 0 || row >= widget.map.rows) return;
     if (col < 0 || col >= widget.map.cols) return;
-    if (widget.map.pathCellSet.contains('${row}_$col')) return;
+    if (!widget.map.isBuildable(row, col)) return;
 
     // existing tower → upgrade
     for (final t in _towers) {
@@ -492,14 +498,26 @@ class _GamePageState extends State<GamePage>
     return Scaffold(
       backgroundColor: RuneColors.background,
       appBar: AppBar(
-        backgroundColor: const Color(0xFF0D1022),
+        backgroundColor: const Color(0xFF1E2238),
         leading: BackButton(color: RuneColors.accent),
         title: Text(
-          '${map.emoji} ${map.name}',
-          style: const TextStyle(
-            color: Color(0xFFBDB0FF),
+          widget.infiniteMode
+              ? '\u221e ${map.name}'
+              : '${map.emoji} ${map.name}',
+          style: TextStyle(
+            color: widget.infiniteMode
+                ? RuneColors.infiniteAccent
+                : const Color(0xFFBDB0FF),
             fontWeight: FontWeight.bold,
             letterSpacing: 1.4,
+            shadows: [
+              Shadow(
+                color: widget.infiniteMode
+                    ? RuneColors.infiniteGlow
+                    : const Color(0x557B5CF0),
+                blurRadius: 12,
+              ),
+            ],
           ),
         ),
         centerTitle: true,
@@ -526,8 +544,15 @@ class _GamePageState extends State<GamePage>
                   ),
                   HudCard(
                     label: 'Wave',
-                    value: '$_wave/${map.wavesCount}',
-                    icon: Icons.waves_rounded,
+                    value: widget.infiniteMode
+                        ? '\u221e$_wave'
+                        : '$_wave/${map.wavesCount}',
+                    icon: widget.infiniteMode
+                        ? Icons.all_inclusive_rounded
+                        : Icons.waves_rounded,
+                    iconColor: widget.infiniteMode
+                        ? RuneColors.infiniteAccent
+                        : null,
                   ),
                   HudCard(
                     label: 'Score',
@@ -590,6 +615,7 @@ class _GamePageState extends State<GamePage>
                               score: _score,
                               wave: _wave,
                               newRecord: _newRecord,
+                              infiniteMode: widget.infiniteMode,
                               onRestart: _reset,
                               onExit: () => Navigator.of(context).pop(),
                             ),
@@ -643,6 +669,7 @@ class _EndOverlay extends StatelessWidget {
   final int score;
   final int wave;
   final bool newRecord;
+  final bool infiniteMode;
   final VoidCallback onRestart;
   final VoidCallback onExit;
 
@@ -651,16 +678,34 @@ class _EndOverlay extends StatelessWidget {
     required this.score,
     required this.wave,
     required this.newRecord,
+    required this.infiniteMode,
     required this.onRestart,
     required this.onExit,
   });
 
   @override
   Widget build(BuildContext context) {
+    final titleColor = won
+        ? const Color(0xFFFFD700)
+        : infiniteMode
+        ? RuneColors.infiniteAccent
+        : const Color(0xFFFF6B6B);
+
     return Positioned.fill(
       child: Container(
         decoration: BoxDecoration(
-          color: Colors.black.withAlpha(200),
+          gradient: RadialGradient(
+            colors: [
+              (won
+                      ? const Color(0xFF1A1200)
+                      : infiniteMode
+                      ? const Color(0xFF1A0800)
+                      : const Color(0xFF1A0000))
+                  .withAlpha(230),
+              Colors.black.withAlpha(210),
+            ],
+            radius: 1.2,
+          ),
           borderRadius: BorderRadius.circular(18),
         ),
         child: Center(
@@ -668,17 +713,33 @@ class _EndOverlay extends StatelessWidget {
             mainAxisSize: MainAxisSize.min,
             children: [
               Text(
-                won ? '✦ Vitória! ✦' : '☠ Game Over ☠',
+                won
+                    ? '✦ Vitória! ✦'
+                    : infiniteMode
+                    ? '⚡ Fim da Batalha!'
+                    : '☠ Game Over ☠',
                 style: TextStyle(
                   fontSize: 32,
                   fontWeight: FontWeight.bold,
                   letterSpacing: 2,
-                  color: won
-                      ? const Color(0xFFFFD700)
-                      : const Color(0xFFFF6B6B),
+                  color: titleColor,
+                  shadows: const [
+                    Shadow(color: Colors.black54, blurRadius: 10),
+                  ],
                 ),
               ),
               const SizedBox(height: 10),
+              if (infiniteMode) ...[
+                Text(
+                  'Sobreviveu até a wave $wave!',
+                  style: TextStyle(
+                    fontSize: 15,
+                    color: RuneColors.infiniteAccent.withAlpha(220),
+                    letterSpacing: 0.8,
+                  ),
+                ),
+                const SizedBox(height: 4),
+              ],
               if (newRecord)
                 const Text(
                   '🏆 Novo Recorde!',
@@ -689,16 +750,23 @@ class _EndOverlay extends StatelessWidget {
                 'Pontuação: $score',
                 style: const TextStyle(fontSize: 18, color: Colors.white70),
               ),
-              Text(
-                'Wave: $wave',
-                style: const TextStyle(fontSize: 14, color: Colors.white38),
-              ),
+              if (!infiniteMode)
+                Text(
+                  'Wave: $wave',
+                  style: const TextStyle(fontSize: 14, color: Colors.white38),
+                ),
               const SizedBox(height: 20),
               Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   FilledButton.icon(
                     onPressed: onRestart,
+                    style: FilledButton.styleFrom(
+                      backgroundColor: infiniteMode
+                          ? RuneColors.infiniteAccent
+                          : null,
+                      foregroundColor: infiniteMode ? Colors.black : null,
+                    ),
                     icon: const Icon(Icons.refresh_rounded),
                     label: const Text('Reiniciar'),
                   ),

@@ -19,13 +19,15 @@ class _MapSelectScreenState extends State<MapSelectScreen> {
     return Scaffold(
       backgroundColor: RuneColors.background,
       appBar: AppBar(
-        backgroundColor: const Color(0xFF0D1022),
+        backgroundColor: const Color(0xFF1E2238),
         title: const Text(
-          '✦ Última Muralha ✦',
+          '\u2694 Última Muralha \u2694',
           style: TextStyle(
             color: Color(0xFFBDB0FF),
             fontWeight: FontWeight.bold,
-            letterSpacing: 1.8,
+            fontSize: 20,
+            letterSpacing: 2.0,
+            shadows: [Shadow(color: Color(0x887B5CF0), blurRadius: 14)],
           ),
         ),
         centerTitle: true,
@@ -40,14 +42,42 @@ class _MapSelectScreenState extends State<MapSelectScreen> {
             const SizedBox(height: 24),
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 20),
-              child: Text(
-                'Selecione o Mapa',
-                style: TextStyle(
-                  color: Colors.white.withAlpha(200),
-                  fontSize: 20,
-                  fontWeight: FontWeight.bold,
-                  letterSpacing: 1.4,
-                ),
+              child: Row(
+                children: [
+                  Text(
+                    'Selecione o Mapa',
+                    style: TextStyle(
+                      color: Colors.white.withAlpha(200),
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                      letterSpacing: 1.4,
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 2,
+                    ),
+                    decoration: BoxDecoration(
+                      color: RuneColors.infiniteAccent.withAlpha(25),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(
+                        color: RuneColors.infiniteAccent.withAlpha(140),
+                        width: 1,
+                      ),
+                    ),
+                    child: const Text(
+                      '\u221e modo infinito disponível',
+                      style: TextStyle(
+                        color: RuneColors.infiniteAccent,
+                        fontSize: 9,
+                        fontWeight: FontWeight.bold,
+                        letterSpacing: 0.5,
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ),
             const SizedBox(height: 12),
@@ -74,6 +104,17 @@ class _MapSelectScreenState extends State<MapSelectScreen> {
                             ),
                           )
                         : null,
+                    onInfiniteTap: unlocked
+                        ? () => Navigator.of(context).push(
+                            MaterialPageRoute(
+                              builder: (_) => GamePage(
+                                map: map,
+                                save: widget.save,
+                                infiniteMode: true,
+                              ),
+                            ),
+                          )
+                        : null,
                   );
                 },
               ),
@@ -95,13 +136,17 @@ class _StatsBanner extends StatelessWidget {
       margin: const EdgeInsets.fromLTRB(16, 16, 16, 0),
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
       decoration: BoxDecoration(
-        color: RuneColors.hudCard,
+        gradient: const LinearGradient(
+          colors: [Color(0xFF1A1440), Color(0xFF111830)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
         borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: RuneColors.accent.withAlpha(64)),
+        border: Border.all(color: RuneColors.accent.withAlpha(80)),
         boxShadow: [
           BoxShadow(
-            color: RuneColors.accent.withAlpha(30),
-            blurRadius: 16,
+            color: RuneColors.accent.withAlpha(40),
+            blurRadius: 20,
             spreadRadius: 2,
           ),
         ],
@@ -165,12 +210,14 @@ class _MapCard extends StatelessWidget {
   final bool unlocked;
   final int bestWave;
   final VoidCallback? onTap;
+  final VoidCallback? onInfiniteTap;
 
   const _MapCard({
     required this.map,
     required this.unlocked,
     required this.bestWave,
     required this.onTap,
+    this.onInfiniteTap,
   });
 
   @override
@@ -254,7 +301,40 @@ class _MapCard extends StatelessWidget {
                 size: 26,
               )
             else
-              Icon(Icons.arrow_forward_ios_rounded, color: col, size: 18),
+              Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Icon(Icons.arrow_forward_ios_rounded, color: col, size: 18),
+                  const SizedBox(height: 6),
+                  GestureDetector(
+                    onTap: onInfiniteTap,
+                    behavior: HitTestBehavior.opaque,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 3,
+                      ),
+                      decoration: BoxDecoration(
+                        color: RuneColors.infiniteAccent.withAlpha(28),
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(
+                          color: RuneColors.infiniteAccent.withAlpha(160),
+                          width: 1,
+                        ),
+                      ),
+                      child: const Text(
+                        '\u221e',
+                        style: TextStyle(
+                          color: RuneColors.infiniteAccent,
+                          fontSize: 15,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
           ],
         ),
       ),

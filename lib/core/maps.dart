@@ -41,6 +41,35 @@ class MapDef {
   List<Offset> get pathPoints => pathCells
       .map<Offset>((p) => Offset(p.x + 0.5, p.y + 0.5))
       .toList(growable: false);
+
+  /// Retorna true se a célula (row, col) está disponível para construção.
+  ///
+  /// Regras:
+  ///  1. Deve ser ortogonalmente adjacente ao caminho (distância Manhattan = 1,
+  ///     sem diagonais).
+  ///  2. A célula do caminho adjacente não pode pertencer à **zona de entrada**
+  ///     (primeiros [entryExclude] nós) nem à **zona de saída** (últimos
+  ///     [exitExclude] nós), evitando que o jogador empilhe torres no começo.
+  bool isBuildable(int row, int col) {
+    if (row < 0 || row >= rows || col < 0 || col >= cols) return false;
+    for (final p in pathCells) {
+      if (p.y == row && p.x == col) return false; // sobre o caminho
+    }
+
+    const entryExclude = 5; // primeiros nós bloqueados para construção
+    const exitExclude = 2; // últimos nós bloqueados para construção
+    final start = entryExclude.clamp(0, pathCells.length);
+    final end = (pathCells.length - exitExclude).clamp(start, pathCells.length);
+
+    for (int i = start; i < end; i++) {
+      final p = pathCells[i];
+      final dr = (p.y - row).abs();
+      final dc = (p.x - col).abs();
+      // adjacência ortogonal estrita (sem diagonal)
+      if (dr + dc == 1) return true;
+    }
+    return false;
+  }
 }
 
 // ─── Map 1: Floresta Sombria ──────────────────────────────────────────────────
@@ -142,10 +171,10 @@ const List<MapDef> kMaps = [
     id: 0,
     name: 'Floresta Sombria',
     description: 'Tutorial — rota simples',
-    emoji: '🌑',
-    themeColor: Color(0xFF2E7D32),
-    pathColor: Color(0xFF1C3320),
-    boardColor: Color(0xFF0D1A10),
+    emoji: '\u1f311',
+    themeColor: Color(0xFF4CAF50),
+    pathColor: Color(0xFF2D5C36),
+    boardColor: Color(0xFF1A2E1C),
     rows: 8,
     cols: 12,
     pathCells: _map1Path,
@@ -159,9 +188,9 @@ const List<MapDef> kMaps = [
     name: 'Ruínas Arcanas',
     description: 'Rota em duplo S — intermediário',
     emoji: '🏰',
-    themeColor: Color(0xFF6A1B9A),
-    pathColor: Color(0xFF2D1044),
-    boardColor: Color(0xFF120820),
+    themeColor: Color(0xFF9C27B0),
+    pathColor: Color(0xFF4A1870),
+    boardColor: Color(0xFF221035),
     rows: 8,
     cols: 12,
     pathCells: _map2Path,
@@ -175,9 +204,9 @@ const List<MapDef> kMaps = [
     name: 'Abismo Vulcânico',
     description: 'Labirinto apertado — difícil',
     emoji: '🌋',
-    themeColor: Color(0xFFBF360C),
-    pathColor: Color(0xFF3E1505),
-    boardColor: Color(0xFF1A0A00),
+    themeColor: Color(0xFFE64A19),
+    pathColor: Color(0xFF6B2208),
+    boardColor: Color(0xFF2A1200),
     rows: 8,
     cols: 12,
     pathCells: _map3Path,

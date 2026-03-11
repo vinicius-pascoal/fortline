@@ -38,6 +38,7 @@ class BoardPainter extends CustomPainter {
     final ch = size.height / map.rows;
 
     _drawBackground(canvas, size);
+    _drawTerrain(canvas, size, cw, ch);
     _drawPath(canvas, cw, ch);
     _drawGrid(canvas, size, cw, ch);
     _drawPendingCell(canvas, cw, ch);
@@ -56,6 +57,99 @@ class BoardPainter extends CustomPainter {
       RRect.fromRectAndRadius(Offset.zero & size, const Radius.circular(18)),
       Paint()..color = map.boardColor,
     );
+  }
+
+  // ─── Terrain (células não construíveis) ──────────────────────────────────────
+  void _drawTerrain(Canvas canvas, Size size, double cw, double ch) {
+    final pathSet = map.pathCellSet;
+    final terrPaint = Paint()..color = RuneColors.terrain;
+    final dotPaint = Paint()..color = RuneColors.terrainDot;
+    final slotPaint = Paint()
+      ..color = map.themeColor.withAlpha(18)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 0.8;
+
+    for (int r = 0; r < map.rows; r++) {
+      for (int c = 0; c < map.cols; c++) {
+        if (pathSet.contains('${r}_$c')) continue;
+
+        final rect = Rect.fromLTWH(c * cw, r * ch, cw, ch);
+        if (!map.isBuildable(r, c)) {
+          // célula de terreno — escura com textura de rocha
+          canvas.drawRect(rect, terrPaint);
+          final cx = c * cw + cw * 0.5;
+          final cy = r * ch + ch * 0.5;
+          canvas.drawCircle(
+            Offset(cx - cw * 0.20, cy - ch * 0.20),
+            1.6,
+            dotPaint,
+          );
+          canvas.drawCircle(
+            Offset(cx + cw * 0.20, cy + ch * 0.20),
+            1.6,
+            dotPaint,
+          );
+          canvas.drawCircle(
+            Offset(cx - cw * 0.20, cy + ch * 0.20),
+            1.0,
+            dotPaint,
+          );
+          canvas.drawCircle(
+            Offset(cx + cw * 0.20, cy - ch * 0.18),
+            1.0,
+            dotPaint,
+          );
+        } else {
+          // slot construível — marcador sutil nos cantos
+          final inset = rect.deflate(math.min(cw, ch) * 0.18);
+          final cornerLen = math.min(cw, ch) * 0.18;
+          // canto superior esquerdo
+          canvas.drawLine(
+            inset.topLeft,
+            inset.topLeft + Offset(cornerLen, 0),
+            slotPaint,
+          );
+          canvas.drawLine(
+            inset.topLeft,
+            inset.topLeft + Offset(0, cornerLen),
+            slotPaint,
+          );
+          // canto superior direito
+          canvas.drawLine(
+            inset.topRight,
+            inset.topRight + Offset(-cornerLen, 0),
+            slotPaint,
+          );
+          canvas.drawLine(
+            inset.topRight,
+            inset.topRight + Offset(0, cornerLen),
+            slotPaint,
+          );
+          // canto inferior esquerdo
+          canvas.drawLine(
+            inset.bottomLeft,
+            inset.bottomLeft + Offset(cornerLen, 0),
+            slotPaint,
+          );
+          canvas.drawLine(
+            inset.bottomLeft,
+            inset.bottomLeft + Offset(0, -cornerLen),
+            slotPaint,
+          );
+          // canto inferior direito
+          canvas.drawLine(
+            inset.bottomRight,
+            inset.bottomRight + Offset(-cornerLen, 0),
+            slotPaint,
+          );
+          canvas.drawLine(
+            inset.bottomRight,
+            inset.bottomRight + Offset(0, -cornerLen),
+            slotPaint,
+          );
+        }
+      }
+    }
   }
 
   // ─── Path ───────────────────────────────────────────────────────────────────

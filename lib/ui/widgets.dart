@@ -51,7 +51,7 @@ class TowerPickerOverlay extends StatelessWidget {
         child: Container(
           padding: const EdgeInsets.all(10),
           decoration: BoxDecoration(
-            color: const Color(0xF2111830),
+            color: const Color(0xF2242A44),
             borderRadius: BorderRadius.circular(16),
             border: Border.all(
               color: RuneColors.accent.withAlpha(180),
@@ -177,35 +177,50 @@ class HudCard extends StatelessWidget {
   final String label;
   final String value;
   final IconData icon;
+  final Color? iconColor;
 
   const HudCard({
     super.key,
     required this.label,
     required this.value,
     required this.icon,
+    this.iconColor,
   });
 
   @override
   Widget build(BuildContext context) {
+    final icoColor = iconColor ?? RuneColors.accent;
     return Container(
-      width: 78,
-      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 7),
+      width: 82,
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 8),
       decoration: BoxDecoration(
-        color: RuneColors.hudCard,
+        gradient: LinearGradient(
+          colors: [RuneColors.hudCard, const Color(0xFF0A1020)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
         borderRadius: BorderRadius.circular(13),
-        border: Border.all(color: RuneColors.accent.withAlpha(64)),
+        border: Border.all(color: icoColor.withAlpha(80)),
         boxShadow: [
-          BoxShadow(color: RuneColors.accent.withAlpha(20), blurRadius: 8),
+          BoxShadow(
+            color: icoColor.withAlpha(35),
+            blurRadius: 10,
+            spreadRadius: 1,
+          ),
         ],
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, size: 15, color: RuneColors.accent),
-          const SizedBox(height: 2),
+          Icon(icon, size: 16, color: icoColor),
+          const SizedBox(height: 3),
           Text(
             value,
-            style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w800),
+            style: const TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w800,
+              letterSpacing: 0.5,
+            ),
           ),
           Text(
             label,

@@ -16,7 +16,7 @@ class FortlineApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Última Muralha',
+      title: 'ï¿½ltima Muralha',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
         useMaterial3: true,
@@ -27,7 +27,7 @@ class FortlineApp extends StatelessWidget {
           brightness: Brightness.dark,
         ),
         appBarTheme: const AppBarTheme(
-          backgroundColor: Color(0xFF0D1022),
+          backgroundColor: Color(0xFF1E2238),
           foregroundColor: Colors.white,
           elevation: 0,
         ),
