@@ -21,7 +21,7 @@ class _MapSelectScreenState extends State<MapSelectScreen> {
       appBar: AppBar(
         backgroundColor: const Color(0xFF1E2238),
         title: const Text(
-          '\u2694 Última Muralha \u2694',
+          '\u2694 Fortline \u2694',
           style: TextStyle(
             color: Color(0xFFBDB0FF),
             fontWeight: FontWeight.bold,

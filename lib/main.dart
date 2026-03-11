@@ -16,7 +16,7 @@ class FortlineApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: '�ltima Muralha',
+      title: 'Fortline',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
         useMaterial3: true,
