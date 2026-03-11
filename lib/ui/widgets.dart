@@ -10,6 +10,7 @@ class TowerPickerOverlay extends StatelessWidget {
   final int rows;
   final int cols;
   final int coins;
+  final int wave;
   final void Function(TowerType) onPick;
   final VoidCallback onCancel;
 
@@ -21,6 +22,7 @@ class TowerPickerOverlay extends StatelessWidget {
     required this.rows,
     required this.cols,
     required this.coins,
+    required this.wave,
     required this.onPick,
     required this.onCancel,
   });
@@ -33,7 +35,7 @@ class TowerPickerOverlay extends StatelessWidget {
     final cy = (row + 0.5) * ch;
 
     const menuW = 248.0;
-    const menuH = 300.0;
+    const menuH = 340.0;
 
     double left = cx - menuW / 2;
     double top = cy + ch * 0.6;
@@ -91,13 +93,27 @@ class TowerPickerOverlay extends StatelessWidget {
                 ],
               ),
               const SizedBox(height: 8),
-              ...kTowerDefs.map(
-                (def) => _TowerRow(
-                  def: def,
-                  affordable: coins >= def.cost,
-                  onTap: () => onPick(def.type),
+              ...kTowerDefs
+                  .where((def) => def.minWave <= wave)
+                  .map(
+                    (def) => _TowerRow(
+                      def: def,
+                      affordable: coins >= def.cost,
+                      onTap: () => onPick(def.type),
+                    ),
+                  ),
+              if (wave < 5)
+                Padding(
+                  padding: const EdgeInsets.only(top: 4),
+                  child: Text(
+                    '🌩 Raios disponível na wave 5',
+                    style: TextStyle(
+                      color: Colors.amber.withAlpha(160),
+                      fontSize: 10,
+                      fontStyle: FontStyle.italic,
+                    ),
+                  ),
                 ),
-              ),
             ],
           ),
         ),
@@ -166,6 +182,149 @@ class _TowerRow extends StatelessWidget {
               ),
             ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+// ─── Tower action overlay ─────────────────────────────────────────────────────
+class TowerActionOverlay extends StatelessWidget {
+  final GridTower tower;
+  final Size boardSize;
+  final int rows;
+  final int cols;
+  final int coins;
+  final VoidCallback onUpgrade;
+  final VoidCallback onSell;
+  final VoidCallback onClose;
+
+  const TowerActionOverlay({
+    super.key,
+    required this.tower,
+    required this.boardSize,
+    required this.rows,
+    required this.cols,
+    required this.coins,
+    required this.onUpgrade,
+    required this.onSell,
+    required this.onClose,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final cw = boardSize.width / cols;
+    final ch = boardSize.height / rows;
+    final cx = (tower.col + 0.5) * cw;
+    final cy = (tower.row + 0.5) * ch;
+
+    const menuW = 200.0;
+    const menuH = 160.0;
+
+    double left = cx - menuW / 2;
+    double top = cy + ch * 0.6;
+    if (left < 4) left = 4;
+    if (left + menuW > boardSize.width - 4) left = boardSize.width - menuW - 4;
+    if (top + menuH > boardSize.height - 4) top = cy - ch * 0.5 - menuH;
+    if (top < 4) top = 4;
+
+    final def = kTowerDefs.firstWhere((d) => d.type == tower.type);
+    final canUpgrade = coins >= tower.upgradeCost;
+
+    return Positioned(
+      left: left,
+      top: top,
+      width: menuW,
+      child: Material(
+        color: Colors.transparent,
+        child: Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: const Color(0xF2242A44),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: def.color.withAlpha(180), width: 1.5),
+            boxShadow: [
+              BoxShadow(
+                color: def.color.withAlpha(70),
+                blurRadius: 18,
+                spreadRadius: 2,
+              ),
+            ],
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    '${def.emoji} ${def.name} Lv.${tower.level}',
+                    style: TextStyle(
+                      color: def.color,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 13,
+                    ),
+                  ),
+                  GestureDetector(
+                    onTap: onClose,
+                    child: const Icon(
+                      Icons.close,
+                      color: Colors.white38,
+                      size: 18,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 10),
+              Row(
+                children: [
+                  Expanded(
+                    child: FilledButton(
+                      onPressed: canUpgrade ? onUpgrade : null,
+                      style: FilledButton.styleFrom(
+                        backgroundColor: canUpgrade
+                            ? RuneColors.accent
+                            : Colors.white12,
+                        padding: const EdgeInsets.symmetric(vertical: 8),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                      ),
+                      child: Text(
+                        '↑ ${tower.upgradeCost}🪙',
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
+                          color: canUpgrade ? Colors.white : Colors.white30,
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed: onSell,
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: Colors.amber,
+                        side: const BorderSide(color: Colors.amber, width: 1),
+                        padding: const EdgeInsets.symmetric(vertical: 8),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                      ),
+                      child: Text(
+                        'Vender ${tower.sellValue}🪙',
+                        style: const TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
         ),
       ),
     );

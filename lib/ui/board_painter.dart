@@ -17,6 +17,7 @@ class BoardPainter extends CustomPainter {
   final int? pendingRow;
   final int? pendingCol;
   final double animTime; // increases each frame for shimmer etc.
+  final GridTower? selectedTower;
 
   const BoardPainter({
     required this.map,
@@ -30,6 +31,7 @@ class BoardPainter extends CustomPainter {
     this.pendingRow,
     this.pendingCol,
     this.animTime = 0,
+    this.selectedTower,
   });
 
   @override
@@ -42,6 +44,7 @@ class BoardPainter extends CustomPainter {
     _drawPath(canvas, cw, ch);
     _drawGrid(canvas, size, cw, ch);
     _drawPendingCell(canvas, cw, ch);
+    if (selectedTower != null) _drawRangeRing(canvas, selectedTower!, cw, ch);
     drawParticles(canvas, particles, cw, ch);
     drawFlashes(canvas, flashes, cw, ch);
     drawLasers(canvas, lasers, cw, ch);
@@ -260,6 +263,21 @@ class BoardPainter extends CustomPainter {
     }
   }
 
+  void _drawRangeRing(Canvas canvas, GridTower tower, double cw, double ch) {
+    final center = Offset((tower.col + 0.5) * cw, (tower.row + 0.5) * ch);
+    final rangeR = tower.range * cw;
+    final col = tower.color;
+    canvas.drawCircle(center, rangeR, Paint()..color = col.withAlpha(22));
+    canvas.drawCircle(
+      center,
+      rangeR,
+      Paint()
+        ..color = col.withAlpha(160)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.5,
+    );
+  }
+
   void _drawTower(Canvas canvas, GridTower tower, double cw, double ch) {
     final center = Offset((tower.col + 0.5) * cw, (tower.row + 0.5) * ch);
     final baseR = math.min(cw, ch) * 0.28;
@@ -366,8 +384,53 @@ class BoardPainter extends CustomPainter {
     final gp = pathData.resolve(enemy.distance);
     final center = Offset(gp.dx * cw, gp.dy * ch);
     final isTank = enemy.type == EnemyType.tank;
-    final radius = math.min(cw, ch) * (isTank ? 0.30 : 0.20);
+    final radius =
+        math.min(cw, ch) *
+        (enemy.isBoss
+            ? 0.38
+            : isTank
+            ? 0.30
+            : 0.20);
     final col = enemy.color;
+
+    // alpha fade-in durante spawn
+    final alphaScale = enemy.spawnTimer > 0
+        ? (1.0 - enemy.spawnTimer / 0.5).clamp(0.0, 1.0)
+        : 1.0;
+    final alpha = (alphaScale * 255).round();
+
+    // teleport ring durante spawn
+    if (enemy.spawnTimer > 0) {
+      final ring = 1.0 - (enemy.spawnTimer / 0.5);
+      canvas.drawCircle(
+        center,
+        radius * (1.0 + ring * 1.8),
+        Paint()
+          ..color = col.withAlpha(((1.0 - ring) * 180).round())
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 2.0,
+      );
+    }
+
+    // boss pulsing gold ring
+    if (enemy.isBoss) {
+      final pulse = 0.06 + 0.05 * math.sin(animTime * 5);
+      canvas.drawCircle(
+        center,
+        radius * (1.55 + pulse),
+        Paint()
+          ..color = Colors.amber.withAlpha(((alphaScale * 70)).round())
+          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 8),
+      );
+      canvas.drawCircle(
+        center,
+        radius * (1.4 + pulse),
+        Paint()
+          ..color = Colors.amber.withAlpha(((alphaScale * 150)).round())
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 2.5,
+      );
+    }
 
     // slow aura
     if (enemy.slowTimer > 0) {
@@ -403,14 +466,14 @@ class BoardPainter extends CustomPainter {
       );
     }
 
-    // body
-    canvas.drawCircle(center, radius, Paint()..color = col);
+    // body (com fade-in)
+    canvas.drawCircle(center, radius, Paint()..color = col.withAlpha(alpha));
 
     // inner glow
     canvas.drawCircle(
       center,
       radius * 0.45,
-      Paint()..color = Colors.white.withAlpha(140),
+      Paint()..color = Colors.white.withAlpha(((alphaScale * 140)).round()),
     );
 
     // tank extra ring
@@ -419,16 +482,16 @@ class BoardPainter extends CustomPainter {
         center,
         radius,
         Paint()
-          ..color = col
+          ..color = col.withAlpha(alpha)
           ..style = PaintingStyle.stroke
           ..strokeWidth = 2.5,
       );
     }
 
-    // HP bar
+    // HP bar (com fade-in)
     final hpPct = (enemy.hp / enemy.maxHp).clamp(0.0, 1.0);
-    final barW = cw * 0.76;
-    final barH = 4.5;
+    final barW = cw * (enemy.isBoss ? 1.1 : 0.76);
+    final barH = enemy.isBoss ? 6.0 : 4.5;
     final barBg = Rect.fromCenter(
       center: Offset(center.dx, center.dy - radius - 9),
       width: barW,

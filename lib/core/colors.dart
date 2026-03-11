@@ -16,6 +16,7 @@ class RuneColors {
   static const towerFast = Color(0xFF9CFF38);
   static const towerSlow = Color(0xFFCC44FF);
   static const towerLaser = Color(0xFFFF4466);
+  static const towerChain = Color(0xFFFFD54F); // raios encantados
   static const towerCore = Color(0xFFEDE7F6);
 
   // ── Inimigos ─────────────────────────────────────────────────────────────
@@ -31,7 +32,7 @@ class RuneColors {
   static const projFast = Color(0xFF9CFF38);
   static const projSlow = Color(0xFFDA9FEC);
   static const projLaser = Color(0xFFFF4466);
-
+  static const projChain = Color(0xFFFFF176);
   // ── UI ───────────────────────────────────────────────────────────────────
   static const hpBar = Color(0xFF7FFFC4);
   static const hpBarLow = Color(0xFFFF6B6B);

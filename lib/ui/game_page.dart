@@ -55,6 +55,7 @@ class _GamePageState extends State<GamePage>
 
   int? _pendingRow;
   int? _pendingCol;
+  GridTower? _selectedTower; // torre selecionada (mostra alcance + ações)
 
   final _rng = math.Random();
 
@@ -72,6 +73,22 @@ class _GamePageState extends State<GamePage>
   void _startWave(int wave) {
     _remainingToSpawn = 5 + wave * 2;
     _spawnTimer = 0.2;
+    if (wave % 5 == 0) _spawnBoss();
+  }
+
+  void _spawnBoss() {
+    final diff = widget.map.difficultyMult;
+    final hpS = diff * (1 + (_wave - 1) * 0.22);
+    _enemies.add(
+      Enemy(
+        type: EnemyType.tank,
+        maxHp: 600 * hpS,
+        hp: 600 * hpS,
+        speed: 0.6 * diff,
+        reward: 150 + _wave * 10,
+        isBoss: true,
+      ),
+    );
   }
 
   void _spawnEnemy() {
@@ -184,6 +201,10 @@ class _GamePageState extends State<GamePage>
   void _updateEnemies(double dt) {
     for (final e in _enemies) {
       if (!e.alive) continue;
+
+      // fade-in countdown
+      if (e.spawnTimer > 0) e.spawnTimer = math.max(0.0, e.spawnTimer - dt);
+
       e.distance += e.effectiveSpeed * dt;
 
       if (e.type == EnemyType.regen && e.hp < e.maxHp) {
@@ -249,6 +270,8 @@ class _GamePageState extends State<GamePage>
           projColor = RuneColors.projFast;
         case TowerType.slow:
           projColor = RuneColors.projSlow;
+        case TowerType.chain:
+          projColor = RuneColors.projChain;
         default:
           projColor = RuneColors.projFast;
       }
@@ -257,13 +280,19 @@ class _GamePageState extends State<GamePage>
         Projectile(
           position: tower.center,
           target: target,
-          speed: tower.type == TowerType.sniper ? 14.0 : 8.0,
+          speed: tower.type == TowerType.sniper
+              ? 14.0
+              : tower.type == TowerType.chain
+              ? 11.0
+              : 8.0,
           damage: tower.damage,
           color: projColor,
           kind: isSplash ? ProjectileKind.splash : ProjectileKind.bullet,
           splashRadius: isSplash ? tower.splashRadius : 0,
           slowFactor: tower.type == TowerType.slow ? 0.5 : 1.0,
           slowDuration: tower.type == TowerType.slow ? 1.8 : 0.0,
+          chainBounces: tower.type == TowerType.chain ? 2 : 0,
+          chainRadius: tower.type == TowerType.chain ? 1.8 : 0,
         ),
       );
       tower.cooldown = tower.fireInterval;
@@ -348,6 +377,56 @@ class _GamePageState extends State<GamePage>
         spawnFlash(gridPos: hitPos, color: proj.color, radius: 0.35),
       );
       if (target.hp <= 0 && target.alive) _killEnemy(target, hitPos);
+
+      // raios em cadeia
+      if (proj.chainBounces > 0) {
+        _chainLightning(
+          origin: target,
+          fromPos: hitPos,
+          damage: proj.damage * 0.65,
+          bounces: proj.chainBounces,
+          chainRadius: proj.chainRadius,
+          color: proj.color,
+        );
+      }
+    }
+  }
+
+  void _chainLightning({
+    required Enemy origin,
+    required Offset fromPos,
+    required double damage,
+    required int bounces,
+    required double chainRadius,
+    required Color color,
+  }) {
+    final Set<Enemy> hit = {origin};
+    Offset current = fromPos;
+    double dmg = damage;
+    for (int i = 0; i < bounces; i++) {
+      Enemy? next;
+      double bestDist = double.infinity;
+      for (final e in _enemies) {
+        if (!e.alive || e.hp <= 0 || hit.contains(e)) continue;
+        final ep = _path.resolve(e.distance);
+        final d = (ep - current).distance;
+        if (d <= chainRadius && d < bestDist) {
+          bestDist = d;
+          next = e;
+        }
+      }
+      if (next == null) break;
+      final nextPos = _path.resolve(next.distance);
+      _lasers.add(spawnLaser(from: current, to: nextPos, color: color));
+      next.hp -= dmg;
+      _particles.addAll(
+        spawnImpactSparks(gridPos: nextPos, color: color, count: 5),
+      );
+      _flashes.add(spawnFlash(gridPos: nextPos, color: color, radius: 0.30));
+      if (next.hp <= 0 && next.alive) _killEnemy(next, nextPos);
+      hit.add(next);
+      current = nextPos;
+      dmg *= 0.6;
     }
   }
 
@@ -417,6 +496,7 @@ class _GamePageState extends State<GamePage>
       _newRecord = false;
       _pendingRow = null;
       _pendingCol = null;
+      _selectedTower = null;
       _towers.clear();
       _enemies.clear();
       _projectiles.clear();
@@ -430,6 +510,12 @@ class _GamePageState extends State<GamePage>
   // ─── Board tap ───────────────────────────────────────────────────────────────
   void _onBoardTap(Offset pos, Size size) {
     if (_gameOver || _gameWon) return;
+
+    // desselecionar torre ativa
+    if (_selectedTower != null) {
+      setState(() => _selectedTower = null);
+      return;
+    }
 
     if (_pendingRow != null) {
       setState(() {
@@ -446,24 +532,37 @@ class _GamePageState extends State<GamePage>
 
     if (row < 0 || row >= widget.map.rows) return;
     if (col < 0 || col >= widget.map.cols) return;
-    if (!widget.map.isBuildable(row, col)) return;
 
-    // existing tower → upgrade
+    // toque em torre existente → selecionar
     for (final t in _towers) {
       if (t.row == row && t.col == col) {
-        if (_coins >= t.upgradeCost) {
-          setState(() {
-            _coins -= t.upgradeCost;
-            t.level++;
-          });
-        }
+        setState(() => _selectedTower = t);
         return;
       }
     }
 
+    if (!widget.map.isBuildable(row, col)) return;
+
     setState(() {
       _pendingRow = row;
       _pendingCol = col;
+    });
+  }
+
+  void _upgradeTower(GridTower t) {
+    if (_coins >= t.upgradeCost) {
+      setState(() {
+        _coins -= t.upgradeCost;
+        t.level++;
+      });
+    }
+  }
+
+  void _sellTower(GridTower t) {
+    setState(() {
+      _coins += t.sellValue;
+      _towers.remove(t);
+      _selectedTower = null;
     });
   }
 
@@ -591,6 +690,7 @@ class _GamePageState extends State<GamePage>
                                 pendingRow: _pendingRow,
                                 pendingCol: _pendingCol,
                                 animTime: _animTime,
+                                selectedTower: _selectedTower,
                               ),
                               child: const SizedBox.expand(),
                             ),
@@ -603,11 +703,24 @@ class _GamePageState extends State<GamePage>
                               rows: map.rows,
                               cols: map.cols,
                               coins: _coins,
+                              wave: _wave,
                               onPick: _buildTower,
                               onCancel: () => setState(() {
                                 _pendingRow = null;
                                 _pendingCol = null;
                               }),
+                            ),
+                          if (_selectedTower != null)
+                            TowerActionOverlay(
+                              tower: _selectedTower!,
+                              boardSize: bs,
+                              rows: map.rows,
+                              cols: map.cols,
+                              coins: _coins,
+                              onUpgrade: () => _upgradeTower(_selectedTower!),
+                              onSell: () => _sellTower(_selectedTower!),
+                              onClose: () =>
+                                  setState(() => _selectedTower = null),
                             ),
                           if (_gameOver || _gameWon)
                             _EndOverlay(

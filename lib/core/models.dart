@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import 'colors.dart';
 
 // ─── Enums ───────────────────────────────────────────────────────────────────
-enum TowerType { sniper, splash, fast, slow, laser }
+enum TowerType { sniper, splash, fast, slow, laser, chain }
 
 enum EnemyType { normal, fast, tank, flying, regen }
 
@@ -18,6 +18,7 @@ class TowerDef {
   final Color color;
   final String description;
   final ProjectileKind projectileKind;
+  final int minWave; // wave mínima para desbloquear
 
   const TowerDef({
     required this.type,
@@ -27,6 +28,7 @@ class TowerDef {
     required this.color,
     required this.description,
     required this.projectileKind,
+    this.minWave = 1,
   });
 }
 
@@ -76,6 +78,16 @@ const List<TowerDef> kTowerDefs = [
     description: 'Dano contínuo em linha',
     projectileKind: ProjectileKind.laser,
   ),
+  TowerDef(
+    type: TowerType.chain,
+    name: 'Raios',
+    emoji: '🌩',
+    cost: 150,
+    color: RuneColors.towerChain,
+    description: 'Encadeia raios em até 3 alvos',
+    projectileKind: ProjectileKind.bullet,
+    minWave: 5,
+  ),
 ];
 
 // ─── GridTower ────────────────────────────────────────────────────────────────
@@ -111,6 +123,8 @@ class GridTower {
         return 2.5 + (level - 1) * 0.3;
       case TowerType.laser:
         return 3.5 + (level - 1) * 0.4;
+      case TowerType.chain:
+        return 2.5 + (level - 1) * 0.3;
     }
   }
 
@@ -126,6 +140,8 @@ class GridTower {
         return 8 + (level - 1) * 5;
       case TowerType.laser:
         return 22 + (level - 1) * 10; // DPS
+      case TowerType.chain:
+        return 28 + (level - 1) * 14;
     }
   }
 
@@ -141,6 +157,8 @@ class GridTower {
         return math.max(0.4, 1.0 - (level - 1) * 0.10);
       case TowerType.laser:
         return 0.0; // continuous — handled separately
+      case TowerType.chain:
+        return math.max(0.55, 1.3 - (level - 1) * 0.1);
     }
   }
 
@@ -149,6 +167,16 @@ class GridTower {
   int get upgradeCost {
     final base = kTowerDefs.firstWhere((d) => d.type == type).cost;
     return (base * 0.6 + level * 25).round();
+  }
+
+  /// Valor devolvido ao vender (50% do total investido).
+  int get sellValue {
+    final base = kTowerDefs.firstWhere((d) => d.type == type).cost;
+    int total = base;
+    for (int i = 1; i < level; i++) {
+      total += (base * 0.6 + i * 25).round();
+    }
+    return (total * 0.5).round();
   }
 
   Color get color {
@@ -163,6 +191,8 @@ class GridTower {
         return RuneColors.towerSlow;
       case TowerType.laser:
         return RuneColors.towerLaser;
+      case TowerType.chain:
+        return RuneColors.towerChain;
     }
   }
 
@@ -178,6 +208,8 @@ class GridTower {
         return 'L';
       case TowerType.laser:
         return '⚡';
+      case TowerType.chain:
+        return 'Z';
     }
   }
 }
@@ -194,6 +226,8 @@ class Enemy {
   bool flying;
   double slowTimer;
   double slowFactor;
+  bool isBoss; // inimigo chefe
+  double spawnTimer; // contador de fade-in (0.5 → 0)
 
   Enemy({
     required this.type,
@@ -206,6 +240,8 @@ class Enemy {
     this.flying = false,
     this.slowTimer = 0,
     this.slowFactor = 1.0,
+    this.isBoss = false,
+    this.spawnTimer = 0.5,
   });
 
   double get effectiveSpeed => speed * slowFactor;
@@ -238,6 +274,8 @@ class Projectile {
   double splashRadius;
   double slowFactor;
   double slowDuration;
+  int chainBounces; // saltos de raio restantes
+  double chainRadius; // distância máxima do salto (em células)
 
   Projectile({
     required this.position,
@@ -250,6 +288,8 @@ class Projectile {
     this.splashRadius = 0,
     this.slowFactor = 1.0,
     this.slowDuration = 0,
+    this.chainBounces = 0,
+    this.chainRadius = 0,
   });
 }
 
