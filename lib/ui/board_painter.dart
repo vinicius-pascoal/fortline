@@ -56,21 +56,26 @@ class BoardPainter extends CustomPainter {
 
   // ─── Background ─────────────────────────────────────────────────────────────
   void _drawBackground(Canvas canvas, Size size) {
+    final rrect = RRect.fromRectAndRadius(
+      Offset.zero & size,
+      const Radius.circular(18),
+    );
+    canvas.drawRRect(rrect, Paint()..color = map.boardColor);
+    // vinheta: borda mais escura cria profundidade
     canvas.drawRRect(
-      RRect.fromRectAndRadius(Offset.zero & size, const Radius.circular(18)),
-      Paint()..color = map.boardColor,
+      rrect,
+      Paint()
+        ..shader = RadialGradient(
+          center: Alignment.center,
+          radius: 0.82,
+          colors: [Colors.transparent, Colors.black.withAlpha(95)],
+        ).createShader(Offset.zero & size),
     );
   }
 
   // ─── Terrain (células não construíveis) ──────────────────────────────────────
   void _drawTerrain(Canvas canvas, Size size, double cw, double ch) {
     final pathSet = map.pathCellSet;
-    final terrPaint = Paint()..color = RuneColors.terrain;
-    final dotPaint = Paint()..color = RuneColors.terrainDot;
-    final slotPaint = Paint()
-      ..color = map.themeColor.withAlpha(18)
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 0.8;
 
     for (int r = 0; r < map.rows; r++) {
       for (int c = 0; c < map.cols; c++) {
@@ -78,10 +83,19 @@ class BoardPainter extends CustomPainter {
 
         final rect = Rect.fromLTWH(c * cw, r * ch, cw, ch);
         if (!map.isBuildable(r, c)) {
-          // célula de terreno — escura com textura de rocha
-          canvas.drawRect(rect, terrPaint);
+          // xadrez sutil: células alternas ligeiramente mais escuras para textura
+          final dark = (r + c) % 2 == 0;
+          final terrColor = dark
+              ? RuneColors.terrain
+              : Color.lerp(RuneColors.terrain, map.boardColor, 0.30)!;
+          canvas.drawRect(rect, Paint()..color = terrColor);
+
+          // textura de rocha
           final cx = c * cw + cw * 0.5;
           final cy = r * ch + ch * 0.5;
+          final dotAlpha = dark ? 255 : 160;
+          final dotPaint = Paint()
+            ..color = RuneColors.terrainDot.withAlpha(dotAlpha);
           canvas.drawCircle(
             Offset(cx - cw * 0.20, cy - ch * 0.20),
             1.6,
@@ -103,83 +117,142 @@ class BoardPainter extends CustomPainter {
             dotPaint,
           );
         } else {
-          // slot construível — marcador sutil nos cantos
-          final inset = rect.deflate(math.min(cw, ch) * 0.18);
-          final cornerLen = math.min(cw, ch) * 0.18;
-          // canto superior esquerdo
-          canvas.drawLine(
-            inset.topLeft,
-            inset.topLeft + Offset(cornerLen, 0),
-            slotPaint,
+          // slot construível: glow pulsante temático + marcadores de canto
+          final glowA = (15 + 13 * math.sin(animTime * 2.2 + r * 0.7 + c * 1.3))
+              .round()
+              .clamp(4, 40);
+          canvas.drawRect(
+            rect,
+            Paint()..color = map.themeColor.withAlpha(glowA),
           );
-          canvas.drawLine(
-            inset.topLeft,
-            inset.topLeft + Offset(0, cornerLen),
-            slotPaint,
-          );
-          // canto superior direito
-          canvas.drawLine(
-            inset.topRight,
-            inset.topRight + Offset(-cornerLen, 0),
-            slotPaint,
-          );
-          canvas.drawLine(
-            inset.topRight,
-            inset.topRight + Offset(0, cornerLen),
-            slotPaint,
-          );
-          // canto inferior esquerdo
-          canvas.drawLine(
-            inset.bottomLeft,
-            inset.bottomLeft + Offset(cornerLen, 0),
-            slotPaint,
-          );
-          canvas.drawLine(
-            inset.bottomLeft,
-            inset.bottomLeft + Offset(0, -cornerLen),
-            slotPaint,
-          );
-          // canto inferior direito
-          canvas.drawLine(
-            inset.bottomRight,
-            inset.bottomRight + Offset(-cornerLen, 0),
-            slotPaint,
-          );
-          canvas.drawLine(
-            inset.bottomRight,
-            inset.bottomRight + Offset(0, -cornerLen),
-            slotPaint,
-          );
+
+          final slotPaint = Paint()
+            ..color = map.themeColor.withAlpha(85)
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = 1.1;
+          final inset = rect.deflate(math.min(cw, ch) * 0.15);
+          final cornerLen = math.min(cw, ch) * 0.22;
+          _drawCornerMarks(canvas, inset, cornerLen, slotPaint);
         }
       }
     }
+  }
+
+  void _drawCornerMarks(Canvas canvas, Rect rect, double len, Paint paint) {
+    canvas.drawLine(rect.topLeft, rect.topLeft + Offset(len, 0), paint);
+    canvas.drawLine(rect.topLeft, rect.topLeft + Offset(0, len), paint);
+    canvas.drawLine(rect.topRight, rect.topRight + Offset(-len, 0), paint);
+    canvas.drawLine(rect.topRight, rect.topRight + Offset(0, len), paint);
+    canvas.drawLine(rect.bottomLeft, rect.bottomLeft + Offset(len, 0), paint);
+    canvas.drawLine(rect.bottomLeft, rect.bottomLeft + Offset(0, -len), paint);
+    canvas.drawLine(
+      rect.bottomRight,
+      rect.bottomRight + Offset(-len, 0),
+      paint,
+    );
+    canvas.drawLine(
+      rect.bottomRight,
+      rect.bottomRight + Offset(0, -len),
+      paint,
+    );
   }
 
   // ─── Path ───────────────────────────────────────────────────────────────────
   void _drawPath(Canvas canvas, double cw, double ch) {
     // glow under path
     final glowPaint = Paint()
-      ..color = map.themeColor.withAlpha(30)
-      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 12);
-
+      ..color = map.themeColor.withAlpha(38)
+      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 14);
     for (final cell in map.pathCells) {
-      final r = cell.y;
-      final c = cell.x;
-      canvas.drawRect(Rect.fromLTWH(c * cw, r * ch, cw, ch), glowPaint);
-    }
-
-    final pathPaint = Paint()..color = map.pathColor;
-    for (final cell in map.pathCells) {
-      final r = cell.y;
-      final c = cell.x;
       canvas.drawRect(
-        Rect.fromLTWH(c * cw, r * ch, cw, ch).deflate(1),
-        pathPaint,
+        Rect.fromLTWH(cell.x * cw, cell.y * ch, cw, ch),
+        glowPaint,
       );
     }
 
-    // animated rune arrows along path
+    // efeito pedra: moldura escura + centro mais claro + brilho sutil
+    final edgePaint = Paint()..color = map.pathColor.withAlpha(140);
+    final centerPaint = Paint()..color = map.pathColor;
+    final shimPaint = Paint()..color = Colors.white.withAlpha(16);
+    for (final cell in map.pathCells) {
+      final rect = Rect.fromLTWH(cell.x * cw, cell.y * ch, cw, ch);
+      canvas.drawRect(rect, edgePaint);
+      canvas.drawRect(rect.deflate(2.0), centerPaint);
+      canvas.drawRect(rect.deflate(5.0), shimPaint);
+    }
+
     _drawPathArrows(canvas, cw, ch);
+    _drawEntryExit(canvas, cw, ch);
+  }
+
+  void _drawEntryExit(Canvas canvas, double cw, double ch) {
+    if (map.pathCells.isEmpty) return;
+    final pulse = math.sin(animTime * 3.2);
+    final baseR = math.min(cw, ch) * 0.28;
+
+    // portão de entrada
+    final entry = map.pathCells.first;
+    final ec = Offset((entry.x + 0.5) * cw, (entry.y + 0.5) * ch);
+    canvas.drawCircle(
+      ec,
+      baseR * (1.65 + pulse * 0.12),
+      Paint()
+        ..color = map.themeColor.withAlpha(55)
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 10),
+    );
+    canvas.drawCircle(
+      ec,
+      baseR * (1.18 + pulse * 0.07),
+      Paint()
+        ..color = map.themeColor.withAlpha(200)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.8,
+    );
+    _drawPortalLabel(canvas, ec, '▶', map.themeColor.withAlpha(230));
+
+    // portão de saída
+    final exit = map.pathCells.last;
+    final xc = Offset((exit.x + 0.5) * cw, (exit.y + 0.5) * ch);
+    const exitCol = Color(0xFFFF3333);
+    canvas.drawCircle(
+      xc,
+      baseR * (1.5 - pulse * 0.10),
+      Paint()
+        ..color = exitCol.withAlpha(55)
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 8),
+    );
+    canvas.drawCircle(
+      xc,
+      baseR * (1.1 - pulse * 0.05),
+      Paint()
+        ..color = exitCol.withAlpha(185)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.6,
+    );
+    _drawPortalLabel(canvas, xc, '✖', exitCol.withAlpha(210));
+  }
+
+  void _drawPortalLabel(
+    Canvas canvas,
+    Offset center,
+    String text,
+    Color color,
+  ) {
+    final tp = TextPainter(
+      text: TextSpan(
+        text: text,
+        style: TextStyle(
+          color: color,
+          fontSize: 11,
+          fontWeight: FontWeight.bold,
+        ),
+      ),
+      textDirection: TextDirection.ltr,
+    )..layout();
+    tp.paint(
+      canvas,
+      Offset(center.dx - tp.width / 2, center.dy - tp.height / 2),
+    );
   }
 
   void _drawPathArrows(Canvas canvas, double cw, double ch) {
@@ -187,8 +260,8 @@ class BoardPainter extends CustomPainter {
     const spacing = 1.5;
     double d = (animTime * 0.6) % spacing;
     final arrowPaint = Paint()
-      ..color = map.themeColor.withAlpha(120)
-      ..strokeWidth = 1.2
+      ..color = map.themeColor.withAlpha(155)
+      ..strokeWidth = 1.5
       ..strokeCap = StrokeCap.round
       ..style = PaintingStyle.stroke;
 
@@ -204,14 +277,14 @@ class BoardPainter extends CustomPainter {
       final n = dir / len;
       final center = Offset(p0.dx * cw, p0.dy * ch);
       final perp = Offset(-n.dy, n.dx);
-      final ahead = Offset(n.dx * cw * 0.22, n.dy * ch * 0.22);
+      final ahead = Offset(n.dx * cw * 0.27, n.dy * ch * 0.27);
       final left = Offset(
-        -perp.dx * cw * 0.12 - n.dx * cw * 0.12,
-        -perp.dy * ch * 0.12 - n.dy * ch * 0.12,
+        -perp.dx * cw * 0.14 - n.dx * cw * 0.14,
+        -perp.dy * ch * 0.14 - n.dy * ch * 0.14,
       );
       final right = Offset(
-        perp.dx * cw * 0.12 - n.dx * cw * 0.12,
-        perp.dy * ch * 0.12 - n.dy * ch * 0.12,
+        perp.dx * cw * 0.14 - n.dx * cw * 0.14,
+        perp.dy * ch * 0.14 - n.dy * ch * 0.14,
       );
       final path = Path()
         ..moveTo(center.dx + ahead.dx, center.dy + ahead.dy)
@@ -544,13 +617,60 @@ class BoardPainter extends CustomPainter {
 
   // ─── Border ──────────────────────────────────────────────────────────────────
   void _drawBorder(Canvas canvas, Size size) {
+    final rrect = RRect.fromRectAndRadius(
+      Offset.zero & size,
+      const Radius.circular(18),
+    );
+    // glow externo temático
     canvas.drawRRect(
-      RRect.fromRectAndRadius(Offset.zero & size, const Radius.circular(18)),
+      rrect,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 4.0
+        ..color = map.themeColor.withAlpha(60)
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 7),
+    );
+    // linha nítida
+    canvas.drawRRect(
+      rrect,
       Paint()
         ..style = PaintingStyle.stroke
         ..strokeWidth = 1.5
-        ..color = RuneColors.accent.withAlpha(45),
+        ..color = map.themeColor.withAlpha(145),
     );
+
+    // ornamentos de canto
+    final cl = math.min(size.width, size.height) * 0.055;
+    final cornerPaint = Paint()
+      ..color = map.themeColor.withAlpha(210)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 2.0
+      ..strokeCap = StrokeCap.round;
+    const pad = 9.0;
+    final w = size.width;
+    final h = size.height;
+    final corners = [
+      [Offset(pad, pad), Offset(pad + cl, pad), Offset(pad, pad + cl)],
+      [
+        Offset(w - pad, pad),
+        Offset(w - pad - cl, pad),
+        Offset(w - pad, pad + cl),
+      ],
+      [
+        Offset(pad, h - pad),
+        Offset(pad + cl, h - pad),
+        Offset(pad, h - pad - cl),
+      ],
+      [
+        Offset(w - pad, h - pad),
+        Offset(w - pad - cl, h - pad),
+        Offset(w - pad, h - pad - cl),
+      ],
+    ];
+    for (final c in corners) {
+      canvas.drawLine(c[0], c[1], cornerPaint);
+      canvas.drawLine(c[0], c[2], cornerPaint);
+    }
   }
 
   @override
