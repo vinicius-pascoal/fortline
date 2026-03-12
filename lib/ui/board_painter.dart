@@ -41,8 +41,13 @@ class BoardPainter extends CustomPainter {
 
     _drawBackground(canvas, size);
     _drawTerrain(canvas, size, cw, ch);
+    _drawGrid(
+      canvas,
+      size,
+      cw,
+      ch,
+    ); // grid antes do path: ribbon cobre as linhas
     _drawPath(canvas, cw, ch);
-    _drawGrid(canvas, size, cw, ch);
     _drawPendingCell(canvas, cw, ch);
     if (selectedTower != null) _drawRangeRing(canvas, selectedTower!, cw, ch);
     drawParticles(canvas, particles, cw, ch);
@@ -116,6 +121,7 @@ class BoardPainter extends CustomPainter {
             1.0,
             dotPaint,
           );
+          _drawTerrainDecor(canvas, r, c, cx, cy, cw, ch);
         } else {
           // slot construível: glow pulsante temático + marcadores de canto
           final glowA = (15 + 13 * math.sin(animTime * 2.2 + r * 0.7 + c * 1.3))
@@ -157,29 +163,164 @@ class BoardPainter extends CustomPainter {
     );
   }
 
+  // ─── Decorações temáticas de terreno ──────────────────────────────────────────
+  void _drawTerrainDecor(
+    Canvas canvas,
+    int r,
+    int c,
+    double cx,
+    double cy,
+    double cw,
+    double ch,
+  ) {
+    final seed = (r * 37 + c * 53 + r * c) % 97;
+    if (seed > 58) return; // ~60% das células recebem decoração
+    final unit = math.min(cw, ch);
+    final radius = unit * (0.30 + (seed % 7) * 0.03);
+    if (map.id == 0) {
+      _drawTree(canvas, cx, cy, radius);
+    } else if (map.id == 1) {
+      _drawRuneGlyph(canvas, cx, cy, radius, seed);
+    } else {
+      _drawLavaCrack(canvas, cx, cy, radius, seed);
+    }
+  }
+
+  // Floresta: silhueta de árvore
+  void _drawTree(Canvas canvas, double cx, double cy, double r) {
+    // tronco
+    canvas.drawLine(
+      Offset(cx, cy + r * 0.20),
+      Offset(cx, cy + r * 0.85),
+      Paint()
+        ..color = const Color(0xFF4E342E).withAlpha(155)
+        ..strokeWidth = r * 0.22
+        ..strokeCap = StrokeCap.round,
+    );
+    // copa inferior
+    canvas.drawCircle(
+      Offset(cx, cy + r * 0.05),
+      r * 0.52,
+      Paint()..color = map.themeColor.withAlpha(85),
+    );
+    // copa superior
+    canvas.drawCircle(
+      Offset(cx, cy - r * 0.28),
+      r * 0.38,
+      Paint()..color = map.themeColor.withAlpha(130),
+    );
+  }
+
+  // Ruinas Arcanas: glifo polígono + cruz
+  void _drawRuneGlyph(Canvas canvas, double cx, double cy, double r, int seed) {
+    final sides = 5 + seed % 3;
+    final col = map.themeColor.withAlpha(80 + (seed % 5) * 14);
+    final rot = seed * 0.19;
+    final path = Path();
+    for (int i = 0; i < sides; i++) {
+      final a = rot + (i / sides) * math.pi * 2 - math.pi / 2;
+      final pt = Offset(cx + r * math.cos(a), cy + r * math.sin(a));
+      i == 0 ? path.moveTo(pt.dx, pt.dy) : path.lineTo(pt.dx, pt.dy);
+    }
+    path.close();
+    canvas.drawPath(
+      path,
+      Paint()
+        ..color = col
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.0,
+    );
+    canvas.drawLine(
+      Offset(cx - r * 0.22, cy),
+      Offset(cx + r * 0.22, cy),
+      Paint()
+        ..color = col
+        ..strokeWidth = 0.8,
+    );
+    canvas.drawLine(
+      Offset(cx, cy - r * 0.22),
+      Offset(cx, cy + r * 0.22),
+      Paint()
+        ..color = col
+        ..strokeWidth = 0.8,
+    );
+  }
+
+  // Abismo Vulcânico: fendas de lava animadas
+  void _drawLavaCrack(Canvas canvas, double cx, double cy, double r, int seed) {
+    final glow = 0.45 + 0.55 * math.sin(animTime * 2.2 + seed * 0.37);
+    final col = const Color(0xFFFF6D00).withAlpha((50 + glow * 90).round());
+    final paint = Paint()
+      ..color = col
+      ..strokeWidth = 1.2
+      ..strokeCap = StrokeCap.round;
+    final nLines = 2 + seed % 3;
+    for (int i = 0; i < nLines; i++) {
+      final baseAngle = seed * 0.22 + i * (math.pi / nLines);
+      final midX = cx + r * 0.38 * math.cos(baseAngle + 0.55);
+      final midY = cy + r * 0.38 * math.sin(baseAngle + 0.55);
+      final endX = cx + r * 0.82 * math.cos(baseAngle - 0.28);
+      final endY = cy + r * 0.82 * math.sin(baseAngle - 0.28);
+      canvas.drawLine(Offset(cx, cy), Offset(midX, midY), paint);
+      canvas.drawLine(Offset(midX, midY), Offset(endX, endY), paint);
+    }
+  }
+
   // ─── Path ───────────────────────────────────────────────────────────────────
   void _drawPath(Canvas canvas, double cw, double ch) {
-    // glow under path
-    final glowPaint = Paint()
-      ..color = map.themeColor.withAlpha(38)
-      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 14);
-    for (final cell in map.pathCells) {
-      canvas.drawRect(
-        Rect.fromLTWH(cell.x * cw, cell.y * ch, cw, ch),
-        glowPaint,
-      );
-    }
+    if (map.pathCells.length < 2) return;
 
-    // efeito pedra: moldura escura + centro mais claro + brilho sutil
-    final edgePaint = Paint()..color = map.pathColor.withAlpha(140);
-    final centerPaint = Paint()..color = map.pathColor;
-    final shimPaint = Paint()..color = Colors.white.withAlpha(16);
-    for (final cell in map.pathCells) {
-      final rect = Rect.fromLTWH(cell.x * cw, cell.y * ch, cw, ch);
-      canvas.drawRect(rect, edgePaint);
-      canvas.drawRect(rect.deflate(2.0), centerPaint);
-      canvas.drawRect(rect.deflate(5.0), shimPaint);
+    // Ribbon: linha central com traço arredondado (elimina cantos quadrados)
+    final pts = map.pathCells
+        .map((p) => Offset((p.x + 0.5) * cw, (p.y + 0.5) * ch))
+        .toList();
+    final ribbon = Path()..moveTo(pts.first.dx, pts.first.dy);
+    for (int i = 1; i < pts.length; i++) {
+      ribbon.lineTo(pts[i].dx, pts[i].dy);
     }
+    final w = math.min(cw, ch);
+
+    // glow temático externo
+    canvas.drawPath(
+      ribbon,
+      Paint()
+        ..color = map.themeColor.withAlpha(52)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = w * 1.10
+        ..strokeJoin = StrokeJoin.round
+        ..strokeCap = StrokeCap.round
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 14),
+    );
+    // borda escura (dá profundidade)
+    canvas.drawPath(
+      ribbon,
+      Paint()
+        ..color = Colors.black.withAlpha(115)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = w * 0.97
+        ..strokeJoin = StrokeJoin.round
+        ..strokeCap = StrokeCap.round,
+    );
+    // cor principal do caminho
+    canvas.drawPath(
+      ribbon,
+      Paint()
+        ..color = map.pathColor
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = w * 0.84
+        ..strokeJoin = StrokeJoin.round
+        ..strokeCap = StrokeCap.round,
+    );
+    // reflexo central (iluminação de cima)
+    canvas.drawPath(
+      ribbon,
+      Paint()
+        ..color = Colors.white.withAlpha(22)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = w * 0.34
+        ..strokeJoin = StrokeJoin.round
+        ..strokeCap = StrokeCap.round,
+    );
 
     _drawPathArrows(canvas, cw, ch);
     _drawEntryExit(canvas, cw, ch);
